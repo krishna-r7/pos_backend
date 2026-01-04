@@ -54,6 +54,7 @@ export class UserController {
             res.status(400).json({ message: "Invalid password" });
             return;
         }
+        
 
         const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET as string, {
             expiresIn: "30d",
