@@ -32,7 +32,7 @@ export class BillController {
         });
       }
 
-      const offerResult = applyOffer(
+      const offerResult = await applyOffer(
         item.price,
         quantity,
         item.offers as any[]
@@ -43,11 +43,12 @@ export class BillController {
         itemName: item.name,
         unitPrice: item.price,
         quantity,
-        appliedOffer: {
+        availableOffer: {
           offerId: offerResult.offerId,
           offerName: offerResult.offerName,
           discountAmount: offerResult.discountAmount,
           freeQty: offerResult.freeQty,
+          isApplied: offerResult.isApplied,
         },
         finalItemTotal: offerResult.finalTotal,
       });
@@ -67,7 +68,7 @@ export class BillController {
 
       await bill.save();
 
-      return res.status(200).json({ message: "Item added to bill", bill });
+      return res.status(200).json({ status: 200, message: "Item added to bill", bill });
     } catch (error: unknown) {
       console.error(error);
       res.status(500).json({ message: "Failed to add item" });
@@ -77,13 +78,15 @@ export class BillController {
   getCurrentBill = async (req: Request, res: Response): Promise<void> => {
     try {
       const cashierId = req.params.cashierId;
+      console.log(cashierId);
       const bill = await Bill.findOne({
         cashierId,
         status: BillStatus.OPEN,
       });
+      console.log(bill);
 
       if (!bill) {
-        res.status(404).json({ message: "Bill not found", items: [], subTotal: 0, totalDiscount: 0, finalPayableAmount: 0 });
+        res.status(200).json({ message: "Bill not found", items: [], subTotal: 0, totalDiscount: 0, finalPayableAmount: 0 });
         return;
       }
 
@@ -103,11 +106,12 @@ export class BillController {
 
       const totalDiscount = subTotal - finalPayableAmount;
 
-      res.status(200).json({
+      res.status(200).json({ status: 200,
         items: activeItems,
         subTotal,
         totalDiscount,
         finalPayableAmount,
+        id: bill._id,
         message: "Bill fetched successfully",
       });
 
@@ -122,13 +126,14 @@ export class BillController {
   createBill = async (req: Request, res: Response): Promise<void> => {
     try {
       const { billId } = req.params;
+
       const bill = await Bill.findOne({
         status: BillStatus.OPEN,
         _id: billId,
       });
 
       if (!bill || bill.items.length === 0) {
-        res.status(400).json({ message: "No active bill found" });
+        res.status(400).json({ status: 400, message: "No active bill found" });
         return;
       }
 
@@ -137,17 +142,17 @@ export class BillController {
 
       await bill.save();
 
-      res.status(200).json({ message: "Bill generated successfully", bill });
+      res.status(200).json({ status: 200, message: "Bill generated successfully", bill });
     } catch (error: unknown) {
       console.error(error);
-      res.status(500).json({ message: "Failed to generate bill" });
+      res.status(500).json({ status: 500, message: "Failed to generate bill" });
     }
   };
 
 
   updateItemQuantity = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { itemId, quantity, cashierId , billId } = req.body;
+      const { itemId, quantity, cashierId , billId,productId } = req.body;
 
       const bill = await Bill.findOne({
         status: BillStatus.OPEN,
@@ -155,23 +160,23 @@ export class BillController {
       });
 
       if (!bill) {
-        res.status(404).json({ message: "No active bill found" });
+        res.status(404).json({  status: 400, message: "No active bill found" });
         return;
       }
 
       const billItem = bill.items.find(
-        (i) => i.itemId.toString() === itemId
+        (i) => i._id.toString() === itemId
       );
 
       if (!billItem) {
-        res.status(404).json({ message: "Item not found in bill" });
+        res.status(404).json({ status: 400,  message: "Item not found in bill" });
         return;
       }
 
-      const updatedItem = await reapplyOfferForBillItem(itemId, quantity);
+      const updatedItem = await reapplyOfferForBillItem(productId, quantity);
 
       billItem.quantity = quantity;
-      billItem.appliedOffer = updatedItem.appliedOffer;
+      billItem.availableOffer = updatedItem.availableOffer;
       billItem.finalItemTotal = updatedItem.finalItemTotal;
 
       const totals = recalculateBillTotals(bill);
@@ -181,10 +186,10 @@ export class BillController {
 
       await bill.save();
 
-      res.status(200).json({ message: "Item quantity updated", bill });
+      res.status(200).json({ status: 200, message: "Item quantity updated", bill });
     } catch (error: unknown) {
       console.error(error);
-      res.status(500).json({ message: "Failed to update quantity" });
+      res.status(500).json({ status: 500, message: "Failed to update quantity" });
     }
   };
 
@@ -198,7 +203,7 @@ export class BillController {
       });
 
       if (!bill) {
-        res.status(404).json({ message: "No active bill found" });
+        res.status(404).json({ status: 400, message: "No active bill found" });
         return;
       }
 
@@ -207,7 +212,7 @@ export class BillController {
       );
 
       if (!billItem) {
-        res.status(404).json({ message: "Item not found in bill" });
+        res.status(404).json({ status: 400, message: "Item not found in bill" });
         return;
       }
 
@@ -228,10 +233,10 @@ export class BillController {
       bill.totalDiscount = bill.subTotal - bill.finalPayableAmount;
 
       await bill.save();
-      res.status(200).json({ message: "Item removed from bill", bill });
+      res.status(200).json({ status: 200, message: "Item removed from bill", bill });
     } catch (error: unknown) {
       console.error(error);
-      res.status(500).json({ message: "Failed to remove item" });
+      res.status(500).json({ status: 500, message: "Failed to remove item" });
     }
   };
 
@@ -240,22 +245,39 @@ export class BillController {
       const { cashierId } = req.query;
       let page = Number(req.query.page) || 1;
       let limit = Number(req.query.limit) || 10;
+
       let filter: any = { status: BillStatus.COMPLETED };
+
       if (cashierId) {
         filter.cashierId = cashierId;
       }
+
       const bills = await Bill.find(
         filter
-      ).sort({ generatedAt: -1 }).skip((page - 1) * limit).limit(limit) ;
-      const total = await Bill.countDocuments(filter);
+      ).sort({ generatedAt: -1 }).skip((page - 1) * limit).limit(limit).lean();
+
+      const cleanedBills = bills.map((bill: any) => ({
+        ...bill, items: bill.items.filter(
+          (item: any) => item.deletedAt === null
+        ),
+      }));
+
+      console.log(cleanedBills[0].items);
+
+
+
+      const total = cleanedBills.length;
       const totalPages = Math.ceil(total / limit);
+      
 
       res.status(200).json({ message: "Bill history fetched successfully",
-        bills, 
+        bills:cleanedBills, 
         pagination: {
         page,
         limit,
+        total,
         totalPages,
+
       } });
     } catch (error: unknown) {
       console.error(error);

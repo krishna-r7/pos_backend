@@ -34,7 +34,7 @@ export const reapplyOfferForBillItem = async (
         throw new Error("Item not found");
     }
 
-    const offerResult = applyOffer(
+    const offerResult = await applyOffer(
         item.price,
         quantity,
         item.offers as any[]
@@ -42,11 +42,12 @@ export const reapplyOfferForBillItem = async (
 
     return {
         unitPrice: item.price,
-        appliedOffer: {
+        availableOffer: {
             offerId: offerResult.offerId,
             offerName: offerResult.offerName,
             discountAmount: offerResult.discountAmount,
             freeQty: offerResult.freeQty,
+            isApplied: offerResult.isApplied,
         },
         finalItemTotal: offerResult.finalTotal,
     };

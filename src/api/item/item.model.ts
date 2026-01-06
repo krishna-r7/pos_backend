@@ -26,6 +26,8 @@ const ItemSchema = new Schema(
       type: Boolean,
       default: true,
     },
+    
+    image:String,
   },
   { timestamps: true }
 );

@@ -16,12 +16,13 @@ export const BillItemSchema = new Schema({
     required: true,
   },
 
-  appliedOffer: {
+  availableOffer: {
     offerId: {
       type: Types.ObjectId,
       ref: "Offer",
     },
     offerName: String,
+    
     discountAmount: {
       type: Number,
       default: 0,
@@ -30,6 +31,12 @@ export const BillItemSchema = new Schema({
       type: Number,
       default: 0,
     },
+
+    isApplied: {
+      type: Boolean,
+      default: false,
+    }
+    
   },
 
   finalItemTotal: {

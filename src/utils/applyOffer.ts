@@ -13,6 +13,7 @@ export const applyOffer = ( unitPrice: number, quantity: number, offers: any[]) 
             discountAmount: 0,
             freeQty: 0,
             finalTotal: unitPrice * quantity,
+            isApplied: false,
         };
     }
 
@@ -35,5 +36,6 @@ export const applyOffer = ( unitPrice: number, quantity: number, offers: any[]) 
         discountAmount,
         freeQty,
         finalTotal: unitPrice * quantity - discountAmount,
+        isApplied: discountAmount > 0,
     };
 };
